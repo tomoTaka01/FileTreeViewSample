@@ -26,17 +26,24 @@ import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
+import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
+import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Text;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Stage;
+import javafx.util.Callback;
 
 public class FileTreeViewSample extends Application {
 
@@ -46,6 +53,8 @@ public class FileTreeViewSample extends Application {
     private TextField rootDirText;
     private Path rootPath;
     private Button dispBtn;
+    private Text messageText;
+    private StringProperty messageProp= new SimpleStringProperty();
     private TreeView<PathItem> fileTreeView;
     private CheckBox watchChkbox;
     private TextArea watchText;
@@ -53,22 +62,27 @@ public class FileTreeViewSample extends Application {
     private Button searchBtn;
     private ListView<String> searchListView;
     private ObservableList<String> searchListItem;
-    private StringProperty searchResult = new SimpleStringProperty();
+    private StringProperty searchProp = new SimpleStringProperty();
     private List<String> searchList = new ArrayList<>();
     private Label searchCountLabel;
 
     public FileTreeViewSample() {
         fileTreeView = new TreeView<>();
+        fileTreeView.getSelectionModel().setSelectionMode(SelectionMode.SINGLE);
         service = Executors.newFixedThreadPool(2);
     }
 
     @Override
-    public void start(Stage stage) {
+    public void start(final Stage stage) {
         VBox root = new VBox();
         root.setPadding(new Insets(10));
         root.setSpacing(10);
         // root Directory
         HBox rootHbox = getRootHbox(stage);
+        messageText = new Text();        
+        messageText.yProperty().set(30);
+        messageText.setFill(Color.RED);
+        messageText.textProperty().bind(messageProp);
         TitledPane titledPane = new TitledPane("File Tree View", fileTreeView);
         titledPane.setPrefHeight(300);
         // Watch Directory
@@ -82,8 +96,8 @@ public class FileTreeViewSample extends Application {
         searchListView.setPrefHeight(100);
         searchListItem = FXCollections.observableArrayList();
         searchListView.setItems(searchListItem);
-        setEventHandler();
-        root.getChildren().addAll(rootHbox, titledPane, watchChkbox, watchText, searchHbox, searchListView);
+        setEventHandler(stage);
+        root.getChildren().addAll(rootHbox, titledPane, messageText, watchChkbox, watchText, searchHbox, searchListView);
         Scene scene = new Scene(root, 800, 600);
         stage.setTitle("File Tree View Sample");
         stage.setScene(scene);
@@ -131,17 +145,26 @@ public class FileTreeViewSample extends Application {
         return hBox;
     }
 
-    private void setEventHandler() {
+    private void setEventHandler(final Stage stage) {
+        dispBtn.setOnKeyPressed(new EventHandler<KeyEvent>() {
+            @Override
+            public void handle(KeyEvent t) {
+                if (t.getCode() == KeyCode.ENTER) {
+                    dispBtn.fire();
+                }
+            }
+        });
         // Display File Tree Button
         dispBtn.setOnAction(new EventHandler<ActionEvent>() {
             @Override
             public void handle(ActionEvent t) {
+                messageProp.setValue(null);
                 watchChkbox.setDisable(false);
                 watchChkbox.setSelected(false);
                 watchText.clear();
                 searchBtn.setDisable(false);
                 searchListItem.clear();
-                searchResult.unbind();
+                searchProp.unbind();
                 searchCountLabel.textProperty().unbind();
                 searchCountLabel.setText(null);
                 if (watchTask != null && watchTask.isRunning()) {
@@ -153,6 +176,13 @@ public class FileTreeViewSample extends Application {
                 rootPath = Paths.get(rootDirText.getText());
                 PathItem pathItem = new PathItem(rootPath);
                 fileTreeView.setRoot(createNode(pathItem));
+                fileTreeView.setEditable(true);
+                fileTreeView.setCellFactory(new Callback<TreeView<PathItem>, TreeCell<PathItem>>(){
+                    @Override
+                    public TreeCell<PathItem> call(TreeView<PathItem> p) {
+                        return new PathTreeCell(stage, messageProp);
+                    }
+                });
             }
         });
         // Watch Directory CheckBox
@@ -175,33 +205,23 @@ public class FileTreeViewSample extends Application {
         searchBtn.setOnAction(new EventHandler<ActionEvent>() {
             @Override
             public void handle(ActionEvent t) {
-                searchListItem.clear();                
+                searchListItem.clear();
+                searchListView.getItems().clear();
                 searchTask = new SearchTask(rootPath, patternText.getText());
                 searchCountLabel.textProperty().bind(searchTask.messageProperty());
                 searchList.clear();
-                searchResult.bind(searchTask.getResultString());
+                searchProp.bind(searchTask.getResultString());
                 searchTask.setOnSucceeded(new EventHandler<WorkerStateEvent>() {
                     @Override
                     public void handle(WorkerStateEvent t) {
                         searchListItem.addAll(searchList); // add all search result at once
                     }
                 });
-                // this bind does not work???
-//                searchCountLabel.textProperty().bind(
-//                        new StringBinding() {
-//                    {
-//                        bind(searchTask.progressProperty());
-//                    }
-//                    @Override
-//                    protected String computeValue() {
-//                        return String.format("%1.0f files founded", searchTask.progressProperty().getValue());
-//                    }
-//                });
                 service.submit(searchTask);
             }
         });
         // *** binding to search task result one by one ***
-        searchResult.addListener(new ChangeListener<String>() {
+        searchProp.addListener(new ChangeListener<String>() {
             @Override
             public void changed(ObservableValue<? extends String> ov, String oldVal, String newVal) {
                 if (newVal != null) {

@@ -41,7 +41,6 @@ public class SearchTask extends Task<Void> {
                     cnt++;
                     resultString.setValue(file.toAbsolutePath().toString()); // to bind to the ListItem
                     updateMessage(String.format("%d files founded", cnt)); // to bind to the Label
-                    updateProgress(cnt, cnt);  // this does not work
                 }
                 return FileVisitResult.CONTINUE;
             }
