@@ -17,14 +17,11 @@ import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
-import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
 import javafx.concurrent.WorkerStateEvent;
-import javafx.event.ActionEvent;
-import javafx.event.EventHandler;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -36,7 +33,6 @@ import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
-import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.image.Image;
@@ -44,7 +40,6 @@ import javafx.scene.image.ImageView;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.Dragboard;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -52,7 +47,6 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Stage;
-import javafx.util.Callback;
 
 public class FileTreeViewSample extends Application {
 
@@ -222,12 +216,15 @@ public class FileTreeViewSample extends Application {
     private void setDragDropEvent(Stage stage, final PathTreeCell cell) {
         // The drag starts on a gesture source
         cell.setOnDragDetected(event -> {
-            Dragboard db = cell.startDragAndDrop(TransferMode.COPY);
-            ClipboardContent content = new ClipboardContent();
-            List<File> files = Arrays.asList(cell.getTreeItem().getValue().getPath().toFile());
-            content.putFiles(files);
-            db.setContent(content);
-            event.consume();
+            TreeItem<PathItem> item = cell.getTreeItem();
+            if (item != null && item.isLeaf()) {
+                Dragboard db = cell.startDragAndDrop(TransferMode.COPY);
+                ClipboardContent content = new ClipboardContent();
+                List<File> files = Arrays.asList(cell.getTreeItem().getValue().getPath().toFile());
+                content.putFiles(files);
+                db.setContent(content);
+                event.consume();
+            }
         });
         // on a Target
         cell.setOnDragOver(event -> {
