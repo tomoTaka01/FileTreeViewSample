@@ -1,19 +1,22 @@
 package filetreeviewsample;
 
-import javafx.beans.property.ObjectProperty;
+import javafx.beans.property.BooleanProperty;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.TreeItem;
 import javafx.scene.layout.GridPane;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 
-public class ModalDialog {
-
-    public ModalDialog(Stage owner, final TreeItem<PathItem> treeItem, final ObjectProperty<TreeItem<PathItem>> prop) {
+/**
+ * Dialog for confirm copying file
+ * 
+ * @author tomo
+ */
+public class CopyModalDialog {    
+    public CopyModalDialog(Stage owner, final BooleanProperty replaceProp) {
         final Stage dialog = new Stage(StageStyle.UTILITY);
         dialog.initOwner(owner);
         dialog.initModality(Modality.APPLICATION_MODAL);
@@ -21,14 +24,15 @@ public class ModalDialog {
         root.setPadding(new Insets(30));
         root.setHgap(5);
         root.setVgap(10);
-        Label label = new Label("Are you sure?");
+        Label label = new Label("既に存在します。上書きしますか?");
         Button okButton = new Button("OK");
         okButton.setOnAction(event -> {
-            prop.set(treeItem);
+            replaceProp.set(true);
             dialog.hide();
         });
         Button cancelButton = new Button("Cancel");
         cancelButton.setOnAction(event -> {
+            replaceProp.set(false);
             dialog.hide();
         });
         root.add(label, 0, 0, 2, 1);

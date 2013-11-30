@@ -8,7 +8,6 @@ import java.nio.file.Paths;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.StringProperty;
-import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
@@ -33,11 +32,8 @@ public class PathTreeCell extends TreeCell<PathItem>{
     public PathTreeCell(final Stage owner, final StringProperty messageProp) {
         this.messageProp = messageProp;
         MenuItem expandMenu = new MenuItem("Expand");
-        expandMenu.setOnAction(new EventHandler<ActionEvent>() {
-            @Override
-            public void handle(ActionEvent t) {
-                getTreeItem().setExpanded(true);
-            }
+        expandMenu.setOnAction((ActionEvent event) -> {
+            getTreeItem().setExpanded(true);
         });
         MenuItem expandAllMenu = new MenuItem("Expand All");
         expandAllMenu.setOnAction(new EventHandler<ActionEvent>() {
@@ -51,11 +47,8 @@ public class PathTreeCell extends TreeCell<PathItem>{
                 }
                 item.setExpanded(true);
                 ObservableList<TreeItem<PathItem>> children = item.getChildren();
-                for (TreeItem<PathItem> child : children) {
-                    if (!child.isLeaf()) {
-                        expandTreeItem(child);
-                    }
-                }
+                children.stream().filter(child -> (!child.isLeaf()))
+                    .forEach(child -> expandTreeItem(child));
             }
         });
         MenuItem addMenu = new MenuItem("Add Directory");
@@ -88,27 +81,21 @@ public class PathTreeCell extends TreeCell<PathItem>{
             }
         });
         MenuItem deleteMenu =new MenuItem("Delete");
-        deleteMenu.setOnAction(new EventHandler<ActionEvent>() {
-            @Override
-            public void handle(ActionEvent t) {
-                ObjectProperty<TreeItem<PathItem>> prop = new SimpleObjectProperty<>();
-                new ModalDialog(owner, getTreeItem(), prop);
-                prop.addListener(new ChangeListener<TreeItem<PathItem>>() {
-                    @Override
-                    public void changed(ObservableValue<? extends TreeItem<PathItem>> ov, TreeItem<PathItem> oldItem, TreeItem<PathItem> newItem) {
-                        try {
-                            Files.walkFileTree(newItem.getValue().getPath(), new VisitorForDelete());
-                            if (getTreeItem().getParent() == null){
-                                // when the root is deleted how to clear the TreeView???
-                            } else {
-                                getTreeItem().getParent().getChildren().remove(newItem);
-                            }
-                        } catch (IOException ex) {
-                            messageProp.setValue(String.format("Deleting %s failed", newItem.getValue().getPath().getFileName()));
-                        }
+        deleteMenu.setOnAction((ActionEvent event) -> {
+            ObjectProperty<TreeItem<PathItem>> prop = new SimpleObjectProperty<>();
+            new ModalDialog(owner, getTreeItem(), prop);
+            prop.addListener((ObservableValue<? extends TreeItem<PathItem>> ov, TreeItem<PathItem> oldItem, TreeItem<PathItem> newItem) -> {
+                try {
+                    Files.walkFileTree(newItem.getValue().getPath(), new VisitorForDelete());
+                    if (getTreeItem().getParent() == null){
+                        // when the root is deleted how to clear the TreeView???
+                    } else {
+                        getTreeItem().getParent().getChildren().remove(newItem);
                     }
-                });
-            }
+                } catch (IOException ex) {
+                    messageProp.setValue(String.format("Deleting %s failed", newItem.getValue().getPath().getFileName()));
+                }
+            });
         });
         dirMenu.getItems().addAll(expandMenu, expandAllMenu, deleteMenu, addMenu);
         fileMenu.getItems().addAll(deleteMenu);
@@ -182,15 +169,12 @@ public class PathTreeCell extends TreeCell<PathItem>{
 
     private void createTextField() {
         textField = new TextField(getString());
-        textField.setOnKeyReleased(new EventHandler<KeyEvent>() {
-            @Override
-            public void handle(KeyEvent t) {
-                if (t.getCode() == KeyCode.ENTER){
-                    Path path = Paths.get(getItem().getPath().getParent().toAbsolutePath().toString(), textField.getText());
-                    commitEdit(new PathItem(path));
-                } else if (t.getCode() == KeyCode.ESCAPE) {
-                    cancelEdit();
-                }
+        textField.setOnKeyReleased((KeyEvent t) -> {
+            if (t.getCode() == KeyCode.ENTER){
+                Path path = Paths.get(getItem().getPath().getParent().toAbsolutePath().toString(), textField.getText());
+                commitEdit(new PathItem(path));
+            } else if (t.getCode() == KeyCode.ESCAPE) {
+                cancelEdit();
             }
         });
     }

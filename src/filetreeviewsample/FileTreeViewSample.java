@@ -1,14 +1,20 @@
 package filetreeviewsample;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import javafx.application.Application;
 import static javafx.application.Application.launch;
+import javafx.application.Platform;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.beans.value.ChangeListener;
@@ -35,8 +41,11 @@ import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.Dragboard;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.TransferMode;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -69,7 +78,7 @@ public class FileTreeViewSample extends Application {
     public FileTreeViewSample() {
         fileTreeView = new TreeView<>();
         fileTreeView.getSelectionModel().setSelectionMode(SelectionMode.SINGLE);
-        service = Executors.newFixedThreadPool(2);
+        service = Executors.newFixedThreadPool(3);
     }
 
     @Override
@@ -102,6 +111,7 @@ public class FileTreeViewSample extends Application {
         stage.setTitle("File Tree View Sample");
         stage.setScene(scene);
         stage.show();
+        Platform.runLater(() -> rootDirText.requestFocus());
     }
 
     private HBox getRootHbox(final Stage stage) {
@@ -110,19 +120,16 @@ public class FileTreeViewSample extends Application {
         Label label = new Label("root Directory:");
         rootDirText = new TextField();
         rootDirText.setPrefWidth(300);
-        rootDirText.requestFocus(); // this does not work?
+        rootDirText.setText("/Users/tomo/tmp"); // TODO delete
         final DirectoryChooser chooser = new DirectoryChooser();
         chooser.setTitle("select Directory");
         Image image = new Image(getClass().getResourceAsStream("OpenDirectory.png"));
         Button chooserBtn = new Button("", new ImageView(image));
         chooser.setTitle("Select Root Directory");
-        chooserBtn.setOnAction(new EventHandler<ActionEvent>() {
-            @Override
-            public void handle(ActionEvent t) {
-                File selDir = chooser.showDialog(stage);
-                if (selDir != null) {
-                    rootDirText.setText(selDir.getAbsolutePath());
-                }
+        chooserBtn.setOnAction(event -> {
+            File selDir = chooser.showDialog(stage);
+            if (selDir != null) {
+                rootDirText.setText(selDir.getAbsolutePath());
             }
         });
         dispBtn = new Button("Display File Tree");
@@ -146,88 +153,155 @@ public class FileTreeViewSample extends Application {
     }
 
     private void setEventHandler(final Stage stage) {
-        dispBtn.setOnKeyPressed(new EventHandler<KeyEvent>() {
-            @Override
-            public void handle(KeyEvent t) {
-                if (t.getCode() == KeyCode.ENTER) {
-                    dispBtn.fire();
-                }
+        dispBtn.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ENTER) {
+                dispBtn.fire();
             }
         });
         // Display File Tree Button
-        dispBtn.setOnAction(new EventHandler<ActionEvent>() {
-            @Override
-            public void handle(ActionEvent t) {
-                messageProp.setValue(null);
-                watchChkbox.setDisable(false);
-                watchChkbox.setSelected(false);
-                watchText.clear();
-                searchBtn.setDisable(false);
-                searchListItem.clear();
-                searchProp.unbind();
-                searchCountLabel.textProperty().unbind();
-                searchCountLabel.setText(null);
-                if (watchTask != null && watchTask.isRunning()) {
-                    watchTask.cancel();
-                }
-                if (searchTask != null && searchTask.isRunning()) {
-                    searchTask.cancel();
-                }
-                rootPath = Paths.get(rootDirText.getText());
-                PathItem pathItem = new PathItem(rootPath);
-                fileTreeView.setRoot(createNode(pathItem));
-                fileTreeView.setEditable(true);
-                fileTreeView.setCellFactory(new Callback<TreeView<PathItem>, TreeCell<PathItem>>(){
-                    @Override
-                    public TreeCell<PathItem> call(TreeView<PathItem> p) {
-                        return new PathTreeCell(stage, messageProp);
-                    }
-                });
+        dispBtn.setOnAction(event -> {
+            messageProp.setValue(null);
+            watchChkbox.setDisable(false);
+            watchChkbox.setSelected(false);
+            watchText.clear();
+            searchBtn.setDisable(false);
+            searchListItem.clear();
+            searchProp.unbind();
+            searchCountLabel.textProperty().unbind();
+            searchCountLabel.setText(null);
+            if (watchTask != null && watchTask.isRunning()) {
+                watchTask.cancel();
             }
+            if (searchTask != null && searchTask.isRunning()) {
+                searchTask.cancel();
+            }
+            rootPath = Paths.get(rootDirText.getText());
+            PathItem pathItem = new PathItem(rootPath);
+            fileTreeView.setRoot(createNode(pathItem));
+            fileTreeView.setEditable(true);
+            fileTreeView.setCellFactory((TreeView<PathItem> p) -> {
+                final PathTreeCell cell = new PathTreeCell(stage, messageProp);
+                setDragDropEvent(stage, cell);
+                return cell;
+            });
         });
         // Watch Directory CheckBox
-        watchChkbox.selectedProperty().addListener(new ChangeListener<Boolean>() {
-            @Override
-            public void changed(ObservableValue<? extends Boolean> ov, Boolean oldVal, Boolean newVal) {
-                if (newVal) {
-                    watchTask = new WatchTask(rootPath);
-                    service.submit(watchTask);
-                    watchText.textProperty().bind(watchTask.messageProperty());
-                } else {
-                    if (watchTask != null && watchTask.isRunning()) {
-                        watchTask.cancel();
-                        watchText.textProperty().unbind();
-                    }
+        watchChkbox.selectedProperty().addListener((ObservableValue<? extends Boolean> ov, Boolean oldVal, Boolean newVal) -> {
+            if (newVal) {
+                watchTask = new WatchTask(rootPath);
+                service.submit(watchTask);
+                watchText.textProperty().bind(watchTask.messageProperty());
+            } else {
+                if (watchTask != null && watchTask.isRunning()) {
+                    watchTask.cancel();
+                    watchText.textProperty().unbind();
                 }
             }
         });
         // search button
-        searchBtn.setOnAction(new EventHandler<ActionEvent>() {
-            @Override
-            public void handle(ActionEvent t) {
-                searchListItem.clear();
-                searchListView.getItems().clear();
-                searchTask = new SearchTask(rootPath, patternText.getText());
-                searchCountLabel.textProperty().bind(searchTask.messageProperty());
-                searchList.clear();
-                searchProp.bind(searchTask.getResultString());
-                searchTask.setOnSucceeded(new EventHandler<WorkerStateEvent>() {
-                    @Override
-                    public void handle(WorkerStateEvent t) {
-                        searchListItem.addAll(searchList); // add all search result at once
-                    }
-                });
-                service.submit(searchTask);
-            }
+        searchBtn.setOnAction(event -> {
+            searchListItem.clear();
+            searchListView.getItems().clear();
+            searchTask = new SearchTask(rootPath, patternText.getText());
+            searchCountLabel.textProperty().bind(searchTask.messageProperty());
+            searchList.clear();
+            searchProp.bind(searchTask.getResultString());
+            searchTask.setOnSucceeded((WorkerStateEvent stateEvent) -> {
+                searchListItem.addAll(searchList);
+            });
+            service.submit(searchTask);
         });
         // *** binding to search task result one by one ***
-        searchProp.addListener(new ChangeListener<String>() {
-            @Override
-            public void changed(ObservableValue<? extends String> ov, String oldVal, String newVal) {
-                if (newVal != null) {
-                    searchList.add(newVal);
+        searchProp.addListener((ObservableValue<? extends String> ov, String oldVal, String newVal) -> {
+            if (newVal != null) {
+                searchList.add(newVal);
+            }
+        });
+    }
+
+    private void setDragDropEvent(Stage stage, final PathTreeCell cell) {
+        // The drag starts on a gesture source
+        cell.setOnDragDetected(event -> {
+            Dragboard db = cell.startDragAndDrop(TransferMode.COPY);
+            ClipboardContent content = new ClipboardContent();
+            List<File> files = Arrays.asList(cell.getTreeItem().getValue().getPath().toFile());
+            content.putFiles(files);
+            db.setContent(content);
+            event.consume();
+        });
+        // on a Target
+        cell.setOnDragOver(event -> {
+            TreeItem<PathItem> item = cell.getTreeItem();
+            if ((item != null && !item.isLeaf()) &&
+                    event.getGestureSource() != cell &&
+                    event.getDragboard().hasFiles()) {
+                Path targetPath = cell.getTreeItem().getValue().getPath();
+                PathTreeCell sourceCell = (PathTreeCell) event.getGestureSource();
+                final Path sourceParentPath = sourceCell.getTreeItem().getValue().getPath().getParent();
+                if (sourceParentPath.compareTo(targetPath) != 0) {
+                    event.acceptTransferModes(TransferMode.COPY);
                 }
             }
+            event.consume();
+        });
+        // on a Target
+        cell.setOnDragEntered(event -> {
+            TreeItem<PathItem> item = cell.getTreeItem();
+            if ((item != null && !item.isLeaf()) &&
+                    event.getGestureSource() != cell &&
+                    event.getDragboard().hasFiles()) {
+                Path targetPath = cell.getTreeItem().getValue().getPath();
+                PathTreeCell sourceCell = (PathTreeCell) event.getGestureSource();
+                final Path sourceParentPath = sourceCell.getTreeItem().getValue().getPath().getParent();
+                if (sourceParentPath.compareTo(targetPath) != 0) {
+                    cell.setStyle("-fx-background-color: powderblue;");
+                }                
+            }
+            event.consume();
+        });
+        // on a Target
+        cell.setOnDragExited(event -> {
+            cell.setStyle("-fx-background-color: white");
+            event.consume();
+        });
+        // on a Target
+        cell.setOnDragDropped(event -> {
+            Dragboard db = event.getDragboard();
+            boolean success = false;
+            if (db.hasFiles()) {
+                final Path source = db.getFiles().get(0).toPath();
+                final Path target = Paths.get(
+                        cell.getTreeItem().getValue().getPath().toAbsolutePath().toString(),
+                        source.getFileName().toString());
+                if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+                    Platform.runLater(() -> {
+                        BooleanProperty replaceProp = new SimpleBooleanProperty();
+                        CopyModalDialog dialog = new CopyModalDialog(stage, replaceProp);
+                        replaceProp.addListener((ObservableValue<? extends Boolean> ov, Boolean oldValue, Boolean newValue) -> {
+                            if (newValue) {
+                                FileCopyTask task = new FileCopyTask(source, target);
+                                service.submit(task);
+                            }
+                        });
+                    });
+                } else {
+                    FileCopyTask task = new FileCopyTask(source, target);
+                    service.submit(task);
+                    task.setOnSucceeded(value -> {
+                        Platform.runLater(() -> {
+                            TreeItem<PathItem> item = PathTreeItem.createNode(new PathItem(source));
+                            cell.getTreeItem().getChildren().add(item);
+                        });
+                    });
+                }
+                success = true;
+            }
+            event.setDropCompleted(success);
+            event.consume();
+        });
+        // on a Source
+        cell.setOnDragDone(event -> {
+            ;
         });
     }
 
