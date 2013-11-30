@@ -114,7 +114,6 @@ public class FileTreeViewSample extends Application {
         Label label = new Label("root Directory:");
         rootDirText = new TextField();
         rootDirText.setPrefWidth(300);
-        rootDirText.setText("/Users/tomo/tmp"); // TODO delete
         final DirectoryChooser chooser = new DirectoryChooser();
         chooser.setTitle("select Directory");
         Image image = new Image(getClass().getResourceAsStream("OpenDirectory.png"));
@@ -286,7 +285,7 @@ public class FileTreeViewSample extends Application {
                     service.submit(task);
                     task.setOnSucceeded(value -> {
                         Platform.runLater(() -> {
-                            TreeItem<PathItem> item = PathTreeItem.createNode(new PathItem(source));
+                            TreeItem<PathItem> item = PathTreeItem.createNode(new PathItem(target));
                             cell.getTreeItem().getChildren().add(item);
                         });
                     });
