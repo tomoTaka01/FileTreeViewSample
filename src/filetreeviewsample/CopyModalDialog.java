@@ -24,7 +24,7 @@ public class CopyModalDialog {
         root.setPadding(new Insets(30));
         root.setHgap(5);
         root.setVgap(10);
-        Label label = new Label("既に存在します。上書きしますか?");
+        Label label = new Label("The item already exists in this location. Do you want to replace it?");
         Button okButton = new Button("OK");
         okButton.setOnAction(event -> {
             replaceProp.set(true);
