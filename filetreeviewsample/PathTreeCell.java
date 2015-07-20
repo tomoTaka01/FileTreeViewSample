@@ -1,14 +1,10 @@
 package filetreeviewsample;
 
 import java.io.IOException;
-import java.net.URL;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.StringProperty;
@@ -16,20 +12,14 @@ import javafx.beans.value.ObservableValue;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
-import javafx.scene.Node;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
-import javafx.scene.image.Image;
-import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.stage.Stage;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageReader;
-import javax.imageio.stream.ImageInputStream;
 
 public class PathTreeCell extends TreeCell<PathItem>{
     private TextField textField;
@@ -37,11 +27,7 @@ public class PathTreeCell extends TreeCell<PathItem>{
     private StringProperty messageProp;
     private ContextMenu dirMenu = new ContextMenu();
     private ContextMenu fileMenu = new ContextMenu();
-    private static List<String> imageList;
-    static {
-        imageList = Arrays.asList("BMP", "DIB", "RLE", "JPG", "JPEG" , "JPE", "JFIF"
-        , "GIF", "EMF", "WMF", "TIF", "TIFF", "PNG", "ICO");
-    }
+
 
     public PathTreeCell(final Stage owner, final StringProperty messageProp) {
         this.messageProp = messageProp;
@@ -122,20 +108,15 @@ public class PathTreeCell extends TreeCell<PathItem>{
             setText(null);
             setGraphic(null);
         } else {
-            final String itemString = getString();
             if (isEditing()) {
                 if (textField != null) {
-                    textField.setText(itemString);
+                    textField.setText(getString());
                 }
                 setText(null);
                 setGraphic(textField);
             } else {
-                setText(itemString);
-                if (isImage(itemString)) {
-                    setGraphic(getImage(itemString)); // <-- *** add image
-                } else {
-                    setGraphic(null);
-                }
+                setText(getString());
+                setGraphic(null);
                 if (!getTreeItem().isLeaf()) {
                     setContextMenu(dirMenu);
                 } else {
@@ -196,36 +177,5 @@ public class PathTreeCell extends TreeCell<PathItem>{
                 cancelEdit();
             }
         });
-    }
-
-    private boolean isImage(String itemPath) {
-        String parentPath = getItem().getPath().getParent().toAbsolutePath().toString();
-        try {
-            URL url = new URL("file:" + parentPath + "/" + itemPath);
-            String formatName = "";
-            try (ImageInputStream iis = ImageIO.createImageInputStream(url.openStream())) {
-                Iterator<ImageReader> readers = ImageIO.getImageReaders(iis);
-                if (readers.hasNext()) { // <-- this does not work for tiff file???
-                    ImageReader reader = readers.next();
-                    formatName = reader.getFormatName();
-                }
-            }
-            if (imageList.contains(formatName.toUpperCase())) {
-                return true;
-            }
-        } catch (Exception e) {
-            return false;
-        }
-        return false;
-    }
-
-    private Node getImage(String itemPath) {
-        String parentPath = getItem().getPath().getParent().toAbsolutePath().toString();
-        Image image = new Image("file:" + parentPath + "/" + itemPath);
-        ImageView imageView = new ImageView();
-        imageView.setImage(image);
-        imageView.setFitWidth(10); // <-- set size of image
-        imageView.setPreserveRatio(true);
-        return imageView;
     }
 }
