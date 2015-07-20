@@ -131,8 +131,9 @@ public class PathTreeCell extends TreeCell<PathItem>{
                 setGraphic(textField);
             } else {
                 setText(itemString);
-                if (isImage(itemString)) {
-                    setGraphic(getImage(itemString)); // <-- *** add image
+                final Node image = getImage(itemString);
+                if (image != null) {
+                    setGraphic(image); // <-- *** add image
                 } else {
                     setGraphic(null);
                 }
@@ -198,30 +199,12 @@ public class PathTreeCell extends TreeCell<PathItem>{
         });
     }
 
-    private boolean isImage(String itemPath) {
-        String parentPath = getItem().getPath().getParent().toAbsolutePath().toString();
-        try {
-            URL url = new URL("file:" + parentPath + "/" + itemPath);
-            String formatName = "";
-            try (ImageInputStream iis = ImageIO.createImageInputStream(url.openStream())) {
-                Iterator<ImageReader> readers = ImageIO.getImageReaders(iis);
-                if (readers.hasNext()) { // <-- this does not work for tiff file???
-                    ImageReader reader = readers.next();
-                    formatName = reader.getFormatName();
-                }
-            }
-            if (imageList.contains(formatName.toUpperCase())) {
-                return true;
-            }
-        } catch (Exception e) {
-            return false;
-        }
-        return false;
-    }
-
     private Node getImage(String itemPath) {
         String parentPath = getItem().getPath().getParent().toAbsolutePath().toString();
         Image image = new Image("file:" + parentPath + "/" + itemPath);
+        if (image.isError()) {
+            return null; // <-- if not image
+        }
         ImageView imageView = new ImageView();
         imageView.setImage(image);
         imageView.setFitWidth(10); // <-- set size of image
